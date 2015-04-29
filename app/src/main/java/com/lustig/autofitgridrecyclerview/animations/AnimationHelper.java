@@ -1,11 +1,14 @@
 package com.lustig.autofitgridrecyclerview.animations;
 
-import android.animation.Animator;
 import android.animation.ObjectAnimator;
 import android.os.Handler;
+import android.support.v7.widget.GridLayoutManager;
+import android.util.Log;
 import android.view.View;
+import android.view.ViewTreeObserver;
 
-import java.util.ArrayList;
+import com.lustig.autofitgridrecyclerview.adapters.NumberedAdapter;
+import com.lustig.autofitgridrecyclerview.recyclers.AutoFitRecyclerView;
 
 /**
  * With this class, I am going to achieve the radial reaction effect described on the
@@ -29,7 +32,7 @@ import java.util.ArrayList;
 
 public class AnimationHelper {
 
-    public static final long DEFAULT_DURATION_MS = 200;
+    public static final long DEFAULT_DURATION_MS = 1350;
 
     private static final String DEFAULT_PROPERTY_TO_ANIMATE = "alpha";
 
@@ -39,43 +42,154 @@ public class AnimationHelper {
     /* Duration of animations, set to default value, but can be changed */
     private long mAnimationDuration = DEFAULT_DURATION_MS;
 
-    /* Value to determine if an animation is currently occurring */
-    private boolean isCurrentlyAnimating = false;
+    /* Length of time to wait before spawning next wave of animations */
+    private long mDeltaT = (long) (mAnimationDuration / 3.5);
 
-    /* First, I need an animation queue. I should use a generic view, I'll try that first */
-    private ArrayList<View> mViewsToAnimate = new ArrayList<View>();
+    /* Rather than adding Views one by one, I'm now going to try passing in an array of Views */
+    private View[][] mViews;
 
-    /* Next I'll need a method to add to the animation queue */
-    public void addViewToQueue(View viewToAnimate) {
+    /* Rather than adding Views one by one, I'm now going to try passing in an array of Views */
+    private View[][] mViewsToAnimate;
 
-        /**
-         * If I've already animated the view, don't do it again
-         */
-        if (viewToAnimate.getVisibility() == View.VISIBLE) {
-            return;
-        }
+    private int mNumRows = -1;
 
-        mViewsToAnimate.add(viewToAnimate);
+    private int mNumColumns = -1;
 
-        /* This method is the meat and potatoes of this class */
-        startAnimationChain();
+    private int mTotalItems = -1;
+
+    private int mTimeIntervals = -1;
+
+    private int mNumChildren = -1;
+
+    private AutoFitRecyclerView mRecyclerView;
+
+    private GridLayoutManager mManager;
+
+
+    /**
+     * Not changing anything, just seeing if I'll get the same behavior if I pass the recyclerView
+     * into the constructor and do logic that way.
+     */
+    public AnimationHelper(AutoFitRecyclerView recyclerView) {
+
+        mRecyclerView = recyclerView;
+
+
+
+        mManager = ((GridLayoutManager) mRecyclerView.getLayoutManager());
+
+        mRecyclerView.getViewTreeObserver().addOnGlobalLayoutListener(
+                new ViewTreeObserver.OnGlobalLayoutListener() {
+
+                    @Override
+                    public void onGlobalLayout() {
+
+                        mRecyclerView.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+
+                        mNumColumns = ((NumberedAdapter) mRecyclerView.getAdapter()).getNumColumns();
+
+                        int firstItemPosition = mManager.findFirstCompletelyVisibleItemPosition();
+                        int lastItemPosition = mManager.findLastVisibleItemPosition();
+
+                        Log.d("IMPORTANT", "" + firstItemPosition);
+                        Log.d("IMPORTANT", "" + lastItemPosition);
+
+                        mNumRows = (int) Math.ceil(((double) (lastItemPosition - firstItemPosition) / (double) mNumColumns));
+                        mNumChildren = mRecyclerView.getChildCount();
+
+                        mTotalItems = mRecyclerView.getAdapter().getItemCount();
+
+                        Log.d("IMPORTANT", "Number of Rows: " + mNumRows);
+                        Log.d("IMPORTANT", "Number of Children: " + mNumChildren);
+
+                        Log.d("IMPORTANT", "Number of Items: " + mTotalItems);
+
+
+
+                        mViewsToAnimate = new View[mNumRows][mNumColumns];
+
+                        for (int row = 0; row < mNumRows; ++row) {
+
+                            for (int column = 0; column < mNumColumns; ++column) {
+
+                                int viewNumber = (row * (mNumColumns) + column);
+
+                                Log.d("Lustig", "adding row " + row + ", column " + column);
+                                Log.d("Lustig", "View number: " + viewNumber);
+
+                                mViewsToAnimate[row][column] = mRecyclerView.getChildAt(viewNumber);
+
+                            }
+                        }
+
+                        mTimeIntervals = mNumColumns + mNumRows - 2;
+
+                        Log.d("Lustig", "Animation rows: " + mNumRows);
+
+                        Log.d("Lustig", "Animation columns: " + mNumColumns);
+
+                        Log.d("Lustig", "Animation time intervals: " + mTimeIntervals);
+
+                        animateAllViews();
+
+                    }
+
+                });
+
     }
 
-    /* This method will be in charge of starting the domino effect */
-    private void startAnimationChain() {
+    public AnimationHelper(View[][] viewsToAnimate, AutoFitRecyclerView recyclerView) {
 
-        /* If there is currently not an animation happening, start one */
-        if (mViewsToAnimate.size() >= 2 && !isCurrentlyAnimating) {
+        mRecyclerView = recyclerView;
 
-            animateSingleView(mViewsToAnimate.get(0));
+        mViews = viewsToAnimate;
 
-            /**
-             * If we are currently animating, just wait. The next view animation should
-             * automatically be spawned
-             */
-        } else if (isCurrentlyAnimating) {
+        mNumRows = mViews.length;
+        mNumColumns = mViews[0].length;
 
-            // Just wait, animations should continue until the list is empty
+        mTimeIntervals = mNumColumns + mNumRows - 2;
+
+        Log.d("Lustig", "Animation rows: " + mNumRows);
+
+        Log.d("Lustig", "Animation columns: " + mNumColumns);
+
+        Log.d("Lustig", "Animation time intervals: " + mTimeIntervals);
+
+        animateAllViews();
+    }
+
+    private void animateAllViews() {
+
+        for (int T = 0; T <= (mTimeIntervals); T++) {
+
+            for (
+                    int row = 0, column = T;
+
+                    row <= T && column >= 0;
+
+                    row++, column--) {
+
+                if ((column < mNumColumns && row < mNumRows)) {
+                    Log.d("Animation", "T = " + T + ":\t(" + row + ", " + column + ")");
+
+
+                    final View v = mViewsToAnimate[row][column];
+                    final Handler handler = new Handler();
+
+                    handler.postDelayed(
+                            new Runnable() {
+
+                                @Override
+                                public void run() {
+
+                                    animateSingleView(v);
+
+                                }
+                            }, mDeltaT * T);
+
+                }
+
+            }
 
         }
 
@@ -89,68 +203,19 @@ public class AnimationHelper {
 
         animator.setDuration(mAnimationDuration);
 
-        animator.addListener(
-                new Animator.AnimatorListener() {
-
-                    @Override
-                    public void onAnimationStart(Animator animation) {
-
-                        v.setVisibility(View.VISIBLE);
-
-                        /* Remove the currently animating View from the list */
-                        mViewsToAnimate.remove(v);
-
-                        /* Notify the class Object that an animation is happening */
-                        isCurrentlyAnimating = true;
-
-                        /**
-                         * If, after removing the currently animating view, the list is not empty,
-                         * start the next animation after the current animation is halfway done.
-                         */
-                        if (!mViewsToAnimate.isEmpty()) {
-
-                            /* Set a timer for (mAnimationDuration / 2) ms to start next animation */
-                            final Handler handler = new Handler();
-
-                            handler.postDelayed(
-                                new Runnable() {
-
-                                    @Override
-                                    public void run() {
-                                        // Animate the first item in the list because each time
-                                        // an animation starts, it is removed from the list
-                                        if (!mViewsToAnimate.isEmpty()) {
-                                            animateSingleView(mViewsToAnimate.get(0));
-                                        }
-                                    }
-                                }, mAnimationDuration / 6);
-                        }
-                    }
-                    @Override
-                    public void onAnimationEnd(Animator animation) {
-
-                        /**
-                         * Setting this boolean flag could potentially cause issues as I'm going
-                         * to have to use a Runnable to wait some time before starting the next
-                         * animation. If there are any bugs, come back here, debug, and make sure
-                         * that this flag is behaving as expected
-                         */
-
-                        /* Notify the class Object that the current animation has finished */
-                        isCurrentlyAnimating = false;
-
-                    }
-                    @Override
-                    public void onAnimationCancel(Animator animation) {
-                        // Ignored intentionally
-                    }
-                    @Override
-                    public void onAnimationRepeat(Animator animation) {
-                        // Ignored intentionally
-                    }
-                });
+        v.setVisibility(View.VISIBLE);
 
         animator.start();
+
+    }
+
+    protected class IntelliView {
+
+        public int row = -1;
+
+        public int col = -1;
+
+        public int timeInterval = -1;
 
     }
 

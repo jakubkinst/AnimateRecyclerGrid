@@ -1,8 +1,6 @@
 package com.lustig.autofitgridrecyclerview.adapters;
 
-import android.content.Context;
 import android.support.v7.widget.CardView;
-import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -27,40 +25,19 @@ public class NumberedAdapter extends RecyclerView.Adapter<NumberedAdapter.TextVi
 
     private int mNumColumns = -1;
 
-    private GridLayoutManager mManager;
+    public NumberedAdapter(int count) {
 
-    private View[][] mViewsToAnimate;
+        labels = new ArrayList<>(count);
 
-    private boolean[] mChildHasBeenRevealed;
-
-    private boolean mAllVisible = false;
-
-    private boolean mHasAnimated = false;
-
-    private Context mContext;
-
-    public NumberedAdapter(int count, Context context) {
-
-        mContext = context;
-
-        mChildHasBeenRevealed = new boolean[count];
-
-        Log.d("Lustig", "begin NumberAdapter constructor");
-
-        labels = new ArrayList<String>(count);
         for (int i = 0; i < count; ++i) {
             labels.add(String.valueOf(i));
         }
-
-        Log.d("Lustig", "end NumberAdapter constructor");
     }
 
     @Override
     public void onAttachedToRecyclerView(RecyclerView recyclerView) {
-
-        Log.d("Lustig", "begin onAttached");
-
         super.onAttachedToRecyclerView(recyclerView);
+
         mRecyclerView = (AutoFitRecyclerView) recyclerView;
 
         mHelper = new AnimationHelper(mRecyclerView);
@@ -74,31 +51,20 @@ public class NumberedAdapter extends RecyclerView.Adapter<NumberedAdapter.TextVi
         public final TextView textView;
 
         public TextViewHolder(View itemView) {
-
             super(itemView);
+
             cardView = (CardView) itemView.findViewById(R.id.card);
 
             textView = (TextView) itemView.findViewById(R.id.text);
 
-//            cardView.setOnClickListener(
-//                    new View.OnClickListener() {
-//
-//                        @Override
-//                        public void onClick(View v) {
-//
-//                            makeViewsInvisible();
-//
-//                            mHelper = new AnimationHelper(mViewsToAnimate, mRecyclerView);
-//                        }
-//                    });
+            cardView.setOnClickListener(
+                    new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
 
-        }
-    }
-
-    protected void makeViewsInvisible() {
-
-        for (int i = 0; i < mRecyclerView.getChildCount(); i++) {
-            mRecyclerView.getChildAt(i).setVisibility(View.INVISIBLE);
+                            mHelper.onClickOfCard();
+                        }
+                    });
         }
     }
 
@@ -126,20 +92,16 @@ public class NumberedAdapter extends RecyclerView.Adapter<NumberedAdapter.TextVi
 
         final String label = labels.get(position);
         holder.textView.setText(label);
-
-        if (mHasAnimated) {
-            holder.cardView.setVisibility(View.VISIBLE);
-        }
     }
 
     @Override
     public int getItemCount() {
 
         return labels.size();
-
     }
 
     public int getNumColumns() {
+
         return mNumColumns;
     }
 

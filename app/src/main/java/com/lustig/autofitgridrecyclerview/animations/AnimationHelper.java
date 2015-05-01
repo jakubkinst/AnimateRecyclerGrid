@@ -8,6 +8,7 @@ import android.view.View;
 import android.view.ViewTreeObserver;
 
 import com.lustig.autofitgridrecyclerview.adapters.NumberedAdapter;
+import com.lustig.autofitgridrecyclerview.interfaces.OnChildAttachedListener;
 import com.lustig.autofitgridrecyclerview.recyclers.AutoFitRecyclerView;
 
 /**
@@ -30,9 +31,9 @@ import com.lustig.autofitgridrecyclerview.recyclers.AutoFitRecyclerView;
  * but if I bog myself down with trying to pre-optimize, ain't shit gon' get did...
  */
 
-public class AnimationHelper {
+public class AnimationHelper implements OnChildAttachedListener {
 
-    public static final long DEFAULT_DURATION_MS = 1350;
+    public static final long DEFAULT_DURATION_MS = 350;
 
     private static final String DEFAULT_PROPERTY_TO_ANIMATE = "alpha";
 
@@ -44,9 +45,6 @@ public class AnimationHelper {
 
     /* Length of time to wait before spawning next wave of animations */
     private long mDeltaT = (long) (mAnimationDuration / 3.5);
-
-    /* Rather than adding Views one by one, I'm now going to try passing in an array of Views */
-    private View[][] mViews;
 
     /* Rather than adding Views one by one, I'm now going to try passing in an array of Views */
     private View[][] mViewsToAnimate;
@@ -61,9 +59,43 @@ public class AnimationHelper {
 
     private int mNumChildren = -1;
 
+    /* Scroll tracking variables */
+    private int mTotalYScroll = 0;
+
+    private int mTotalHeight = -1;
+
+    /* I believe this should remain constant once set. Double check though */
+    private int mRowHeight = -1;
+
+    private int mPreviousLastVisibleChildPosition = -1;
+
+    private int mCurrentLastVisibleChildPosition = -1;
+
+    private int mCurrentScrollRow = -1;
+
     private AutoFitRecyclerView mRecyclerView;
 
     private GridLayoutManager mManager;
+
+    private boolean mFirstAnimationsCompleted = false;
+
+    /**
+     * This one is called by MainActivity in order to pass it to the RecyclerView
+     *
+     * However, the side effect is that 2 instances of AnimationHelper are being created.
+     * One is doing all the animating and the other is communicating with the RecyclerView.
+     *
+     * Let's fix that...
+     */
+    public AnimationHelper() {
+        log("Default AnimationHelper constructor");
+    }
+
+    public void setRecyclerView(AutoFitRecyclerView recyclerView) {
+
+        mRecyclerView = recyclerView;
+
+    }
 
 
     /**
@@ -72,15 +104,14 @@ public class AnimationHelper {
      */
     public AnimationHelper(AutoFitRecyclerView recyclerView) {
 
-        mRecyclerView = recyclerView;
+        setRecyclerView(recyclerView);
 
+        mRecyclerView.setOnChildAttachedListener(this);
 
-
-        mManager = ((GridLayoutManager) mRecyclerView.getLayoutManager());
+        mManager = (GridLayoutManager) mRecyclerView.getLayoutManager();
 
         mRecyclerView.getViewTreeObserver().addOnGlobalLayoutListener(
                 new ViewTreeObserver.OnGlobalLayoutListener() {
-
                     @Override
                     public void onGlobalLayout() {
 
@@ -88,23 +119,29 @@ public class AnimationHelper {
 
                         mNumColumns = ((NumberedAdapter) mRecyclerView.getAdapter()).getNumColumns();
 
-                        int firstItemPosition = mManager.findFirstCompletelyVisibleItemPosition();
+                        int firstItemPosition = mManager.findFirstVisibleItemPosition();
                         int lastItemPosition = mManager.findLastVisibleItemPosition();
 
-                        Log.d("IMPORTANT", "" + firstItemPosition);
-                        Log.d("IMPORTANT", "" + lastItemPosition);
+                        Log.d("IMPORTANT", "First visible pos: " + firstItemPosition);
+                        Log.d("IMPORTANT", "Last visible pos: " + lastItemPosition);
+
+                        mCurrentLastVisibleChildPosition = lastItemPosition;
+
+                        Log.d("IMPORTANT", "Current last visible: " + mCurrentLastVisibleChildPosition);
 
                         mNumRows = (int) Math.ceil(((double) (lastItemPosition - firstItemPosition) / (double) mNumColumns));
+
                         mNumChildren = mRecyclerView.getChildCount();
+
+                        mTotalHeight = mRecyclerView.getLayoutManager().getHeight();
 
                         mTotalItems = mRecyclerView.getAdapter().getItemCount();
 
                         Log.d("IMPORTANT", "Number of Rows: " + mNumRows);
+
                         Log.d("IMPORTANT", "Number of Children: " + mNumChildren);
 
                         Log.d("IMPORTANT", "Number of Items: " + mTotalItems);
-
-
 
                         mViewsToAnimate = new View[mNumRows][mNumColumns];
 
@@ -114,11 +151,7 @@ public class AnimationHelper {
 
                                 int viewNumber = (row * (mNumColumns) + column);
 
-                                Log.d("Lustig", "adding row " + row + ", column " + column);
-                                Log.d("Lustig", "View number: " + viewNumber);
-
                                 mViewsToAnimate[row][column] = mRecyclerView.getChildAt(viewNumber);
-
                             }
                         }
 
@@ -131,31 +164,8 @@ public class AnimationHelper {
                         Log.d("Lustig", "Animation time intervals: " + mTimeIntervals);
 
                         animateAllViews();
-
                     }
-
                 });
-
-    }
-
-    public AnimationHelper(View[][] viewsToAnimate, AutoFitRecyclerView recyclerView) {
-
-        mRecyclerView = recyclerView;
-
-        mViews = viewsToAnimate;
-
-        mNumRows = mViews.length;
-        mNumColumns = mViews[0].length;
-
-        mTimeIntervals = mNumColumns + mNumRows - 2;
-
-        Log.d("Lustig", "Animation rows: " + mNumRows);
-
-        Log.d("Lustig", "Animation columns: " + mNumColumns);
-
-        Log.d("Lustig", "Animation time intervals: " + mTimeIntervals);
-
-        animateAllViews();
     }
 
     private void animateAllViews() {
@@ -167,7 +177,8 @@ public class AnimationHelper {
 
                     row <= T && column >= 0;
 
-                    row++, column--) {
+                    row++, column--
+                    ) {
 
                 if ((column < mNumColumns && row < mNumRows)) {
                     Log.d("Animation", "T = " + T + ":\t(" + row + ", " + column + ")");
@@ -178,20 +189,33 @@ public class AnimationHelper {
 
                     handler.postDelayed(
                             new Runnable() {
-
                                 @Override
                                 public void run() {
 
                                     animateSingleView(v);
 
                                 }
-                            }, mDeltaT * T);
 
+                            }, mDeltaT * T);
                 }
 
             }
 
         }
+
+        final Handler animDoneHandler = new Handler();
+
+        animDoneHandler.postDelayed(
+                new Runnable() {
+                    @Override
+                    public void run() {
+
+                        Log.d("Lustig", "First run of anims completed");
+
+                        mFirstAnimationsCompleted = true;
+                    }
+                }, mDeltaT * mTimeIntervals
+        );
 
     }
 
@@ -206,17 +230,43 @@ public class AnimationHelper {
         v.setVisibility(View.VISIBLE);
 
         animator.start();
+    }
+
+    @Override
+    public void onChildAttached(View child) {
+
+        if (mFirstAnimationsCompleted) {
+            child.setVisibility(View.VISIBLE);
+        }
+    }
+
+
+    public void onClickOfCard() {
+
+        makeViewsInvisible();
+
+        animateAllViews();
+    }
+
+    private void log(String msg) {
+
+        Log.d("Lustig", msg);
 
     }
 
-    protected class IntelliView {
+    public void makeViewsInvisible() {
 
-        public int row = -1;
+        /* Disappear all images */
+        for (int i = 0; i < mNumChildren; i++) {
 
-        public int col = -1;
-
-        public int timeInterval = -1;
+            mRecyclerView.getLayoutManager().getChildAt(i).setVisibility(View.INVISIBLE);
+        }
 
     }
+
+
+
+
+
 
 }

@@ -3,6 +3,7 @@ package com.lustig.autofitgridrecyclerview.animations;
 import android.animation.ObjectAnimator;
 import android.os.Handler;
 import android.support.v7.widget.GridLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewTreeObserver;
@@ -32,6 +33,12 @@ import com.lustig.autofitgridrecyclerview.recyclers.AutoFitRecyclerView;
  */
 
 public class AnimationHelper implements OnChildAttachedListener {
+
+    /**************************************************************************
+     **************************************************************************
+     * CLASS VARIABLES ************************************** CLASS VARIABLES *
+     **************************************************************************
+     **************************************************************************/
 
     /**
      * This is the time that it takes one cell to complete an animation.
@@ -81,26 +88,31 @@ public class AnimationHelper implements OnChildAttachedListener {
 
     private long mTimeToCompleteScreenAnimation;
 
-    private long mTimeToCompleteTotalAnimation;
 
     /**
-     * This one is called by MainActivity in order to pass it to the RecyclerView
-     *
-     * However, the side effect is that 2 instances of AnimationHelper are being created.
-     * One is doing all the animating and the other is communicating with the RecyclerView.
-     *
-     * Let's fix that...
+     * This will be how long it would hypothetically take the animation to propogate through all
+     * Views in the Adapter. So, something like numTotalItems * deltaT, but I'll have to verify
      */
-    public AnimationHelper() {
-        log("Default AnimationHelper constructor");
-    }
+    private long mTimeToCompleteTotalAnimation;
 
-    public void setRecyclerView(AutoFitRecyclerView recyclerView) {
+    private int mChildrenAdded = 0;
+    private int mRowsAdded = 0;
 
-        mRecyclerView = recyclerView;
+    private boolean isScrollingDown = false;
 
-    }
+    /**************************************************************************
+     **************************************************************************
+     * END - CLASS VARIABLES ************************** END - CLASS VARIABLES *
+     **************************************************************************
+     **************************************************************************/
 
+
+
+    /**************************************************************************
+     **************************************************************************
+     * CONSTRUCTORS ******************************************** CONSTRUCTORS *
+     **************************************************************************
+     **************************************************************************/
 
     /**
      * Not changing anything, just seeing if I'll get the same behavior if I pass the recyclerView
@@ -149,16 +161,6 @@ public class AnimationHelper implements OnChildAttachedListener {
 
                         mViewsToAnimate = new View[mNumRows][mNumColumns];
 
-//                        for (int row = 0; row < mNumRows; ++row) {
-//
-//                            for (int column = 0; column < mNumColumns; ++column) {
-//
-//                                int viewNumber = (row * (mNumColumns) + column);
-//
-//                                mViewsToAnimate[row][column] = mRecyclerView.getChildAt(viewNumber);
-//                            }
-//                        }
-
                         mTimeIntervals = mNumColumns + mNumRows - 2;
 
                         Log.d("Lustig", "Animation rows: " + mNumRows);
@@ -167,13 +169,49 @@ public class AnimationHelper implements OnChildAttachedListener {
 
                         Log.d("Lustig", "Animation time intervals: " + mTimeIntervals);
 
-                        animateAllViews();
+                        animateInitiallyVisibleViews();
+                    }
+                });
+
+        mRecyclerView.setOnScrollListener(
+                new RecyclerView.OnScrollListener() {
+
+                    @Override
+                    public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
+                        super.onScrolled(recyclerView, dx, dy);
+
+                        if (dy > 0) {
+                            isScrollingDown = true;
+                        } else {
+                            isScrollingDown = false;
+                        }
                     }
                 });
     }
 
-    private void animateAllViews() {
+    /**************************************************************************
+     **************************************************************************
+     * CLASS METHODS ****************************************** CLASS METHODS *
+     **************************************************************************
+     **************************************************************************/
 
+
+
+
+
+
+    public void setRecyclerView(AutoFitRecyclerView recyclerView) {
+        mRecyclerView = recyclerView;
+    }
+
+
+
+
+    private void animateInitiallyVisibleViews() {
+
+        /**
+         * This first for loop gets all current children that can be animated
+         */
         for (int row = 0; row < mNumRows; ++row) {
 
             for (int column = 0; column < mNumColumns; ++column) {
@@ -184,6 +222,12 @@ public class AnimationHelper implements OnChildAttachedListener {
             }
         }
 
+        /**
+         * This for loop adds each view to a queue to animate.
+         *
+         * I can probably refactor this logic into a much simpler for loop.
+         * ToDo look into simpler implementation of this for loop
+         */
         for (int T = 0; T <= (mTimeIntervals); T++) {
 
             for (
@@ -192,7 +236,7 @@ public class AnimationHelper implements OnChildAttachedListener {
                     row <= T && column >= 0;
 
                     row++, column--
-                    ) {
+                                            ) {
 
                 if ((column < mNumColumns && row < mNumRows)) {
                     Log.d("Animation", "T = " + T + ":\t(" + row + ", " + column + ")");
@@ -203,6 +247,7 @@ public class AnimationHelper implements OnChildAttachedListener {
 
                     handler.postDelayed(
                             new Runnable() {
+
                                 @Override
                                 public void run() {
 
@@ -223,6 +268,7 @@ public class AnimationHelper implements OnChildAttachedListener {
 
         animDoneHandler.postDelayed(
                 new Runnable() {
+
                     @Override
                     public void run() {
 
@@ -238,6 +284,9 @@ public class AnimationHelper implements OnChildAttachedListener {
                     }
                 }, mDeltaT * (mTimeIntervals + 1)
         );
+
+        mChildrenAdded = 0;
+        mRowsAdded = 0;
 
     }
 
@@ -260,6 +309,25 @@ public class AnimationHelper implements OnChildAttachedListener {
         if (mFirstAnimationsCompleted) {
             child.setVisibility(View.VISIBLE);
         }
+
+        if (isScrollingDown) {
+
+            mChildrenAdded++;
+
+            Log.d("Lusti", "Children added: " + mChildrenAdded);
+
+            /**
+             * If the number of children added (after the initial animation) is a multiple of the
+             * number of columns, we've got a new row to figure out whether to set visible immediately,
+             * show partial animation for, or queue for animation.
+             */
+            if (mChildrenAdded % mNumColumns == 0) {
+
+                mRowsAdded++;
+
+                Log.d("Lusti", "Rows added: " + mRowsAdded);
+            }
+        }
     }
 
 
@@ -267,7 +335,7 @@ public class AnimationHelper implements OnChildAttachedListener {
 
         makeViewsInvisible();
 
-        animateAllViews();
+        animateInitiallyVisibleViews();
     }
 
     private void log(String msg) {

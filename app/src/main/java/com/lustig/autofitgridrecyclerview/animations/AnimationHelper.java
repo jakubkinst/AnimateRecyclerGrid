@@ -61,7 +61,7 @@ public class AnimationHelper implements OnChildAttachedListener {
     /* Rather than adding Views one by one, I'm now going to try passing in an array of Views */
     private View[][] mViewsToAnimate;
 
-    private int mNumRows = -1;
+    private int mNumVisibleRows = -1;
 
     private int mNumColumns = -1;
 
@@ -70,12 +70,6 @@ public class AnimationHelper implements OnChildAttachedListener {
     private int mTimeIntervals = -1;
 
     private int mNumChildren = -1;
-
-    private int mPreviousLastVisibleChildPosition = -1;
-
-    private int mCurrentLastVisibleChildPosition = -1;
-
-    private int mCurrentScrollRow = -1;
 
     private AutoFitRecyclerView mRecyclerView;
 
@@ -95,10 +89,12 @@ public class AnimationHelper implements OnChildAttachedListener {
      */
     private long mTimeToCompleteTotalAnimation;
 
-    private int mChildrenAdded = 0;
+    private int mChildrenAttached = 0;
     private int mRowsAdded = 0;
 
-    private boolean isScrollingDown = false;
+    private boolean mIsScrollingDown = false;
+
+    private int mNewRowNumber;
 
     /**************************************************************************
      **************************************************************************
@@ -121,6 +117,8 @@ public class AnimationHelper implements OnChildAttachedListener {
     public AnimationHelper(AutoFitRecyclerView recyclerView) {
 
         setRecyclerView(recyclerView);
+
+        mFirstAnimationsCompleted = false;
 
         mRecyclerView.setOnChildAttachedListener(this);
 
@@ -147,23 +145,31 @@ public class AnimationHelper implements OnChildAttachedListener {
                         Log.d("IMPORTANT", "First visible pos: " + firstItemPosition);
                         Log.d("IMPORTANT", "Last visible pos: " + lastItemPosition);
 
-                        mNumRows = (int) Math.ceil(((double) (lastItemPosition - firstItemPosition) / (double) mNumColumns));
-
                         mNumChildren = mRecyclerView.getChildCount();
+
+
+                        /**
+                         * The reason why using lastItemPosition and firstItem position didn't work
+                         * is because a View can be attached to the RecyclerView, but not visible
+                         */
+//                        mNumVisibleRows = (int) Math.ceil(((double) (lastItemPosition - firstItemPosition) / (double) mNumColumns));
+                        mNumVisibleRows = (int) Math.ceil(( (double) mNumChildren / (double) mNumColumns));
 
                         mTotalItems = mRecyclerView.getAdapter().getItemCount();
 
-                        Log.d("Lustig", "Number of Rows: " + mNumRows);
+                        Log.d("Lustig", "Number of Rows: " + mNumVisibleRows);
 
                         Log.d("Lustig", "Number of Children: " + mNumChildren);
 
+                        mChildrenAttached += mNumChildren;
+
                         Log.d("Lustig", "Number of Items: " + mTotalItems);
 
-                        mViewsToAnimate = new View[mNumRows][mNumColumns];
+                        mViewsToAnimate = new View[mNumVisibleRows][mNumColumns];
 
-                        mTimeIntervals = mNumColumns + mNumRows - 2;
+                        mTimeIntervals = mNumColumns + mNumVisibleRows - 2;
 
-                        Log.d("Lustig", "Animation rows: " + mNumRows);
+                        Log.d("Lustig", "Animation rows: " + mNumVisibleRows);
 
                         Log.d("Lustig", "Animation columns: " + mNumColumns);
 
@@ -181,9 +187,9 @@ public class AnimationHelper implements OnChildAttachedListener {
                         super.onScrolled(recyclerView, dx, dy);
 
                         if (dy > 0) {
-                            isScrollingDown = true;
+                            mIsScrollingDown = true;
                         } else {
-                            isScrollingDown = false;
+                            mIsScrollingDown = false;
                         }
                     }
                 });
@@ -212,9 +218,11 @@ public class AnimationHelper implements OnChildAttachedListener {
         /**
          * This first for loop gets all current children that can be animated
          */
-        for (int row = 0; row < mNumRows; ++row) {
+        for (int row = 0; row < mNumVisibleRows; ++row) {
 
             for (int column = 0; column < mNumColumns; ++column) {
+
+                Log.d("Lusti", "(row, column): (" + row + ", " + column + ")");
 
                 int viewNumber = (row * (mNumColumns) + column);
 
@@ -238,7 +246,7 @@ public class AnimationHelper implements OnChildAttachedListener {
                     row++, column--
                                             ) {
 
-                if ((column < mNumColumns && row < mNumRows)) {
+                if ((column < mNumColumns && row < mNumVisibleRows)) {
                     Log.d("Animation", "T = " + T + ":\t(" + row + ", " + column + ")");
 
 
@@ -257,9 +265,7 @@ public class AnimationHelper implements OnChildAttachedListener {
 
                             }, mDeltaT * T);
                 }
-
             }
-
         }
 
         mAnimStartTime = System.currentTimeMillis();
@@ -272,8 +278,6 @@ public class AnimationHelper implements OnChildAttachedListener {
                     @Override
                     public void run() {
 
-                        Log.d("Lustig", "First run of anims completed");
-
                         mFirstAnimationsCompleted = true;
 
                         mAnimEndTime = System.currentTimeMillis();
@@ -284,10 +288,6 @@ public class AnimationHelper implements OnChildAttachedListener {
                     }
                 }, mDeltaT * (mTimeIntervals + 1)
         );
-
-        mChildrenAdded = 0;
-        mRowsAdded = 0;
-
     }
 
     private void animateSingleView(final View v) {
@@ -310,24 +310,40 @@ public class AnimationHelper implements OnChildAttachedListener {
             child.setVisibility(View.VISIBLE);
         }
 
-        if (isScrollingDown) {
+        /**
+         * If the first wave of animations has happened 
+         * && the user is scrolling down
+         * && the new row coming into view has NOT been shown already
+         * 
+         * Use a boolean array to represent row numbers that 
+         */
+        if (mIsScrollingDown && mFirstAnimationsCompleted) {
 
-            mChildrenAdded++;
+            mChildrenAttached++;
 
-            Log.d("Lusti", "Children added: " + mChildrenAdded);
+            Log.d("Lusti", "Children attached: " + mChildrenAttached);
 
             /**
              * If the number of children added (after the initial animation) is a multiple of the
              * number of columns, we've got a new row to figure out whether to set visible immediately,
              * show partial animation for, or queue for animation.
              */
-            if (mChildrenAdded % mNumColumns == 0) {
+            if (mChildrenAttached % mNumColumns == 0) {
 
-                mRowsAdded++;
+//                Log.d("Lusti", "children attached: " + mChildrenAttached);
+//                Log.d("Lusti", "num columns: " + mNumColumns);
 
-                Log.d("Lusti", "Rows added: " + mRowsAdded);
+                onNewRowAttached();
             }
         }
+    }
+
+    private void onNewRowAttached() {
+
+        mRowsAdded++;
+
+        Log.d("Lusti", "Total rows added: " + mRowsAdded);
+//        Log.d("Lusti", "Current row number: " + mNewRowNumber);
     }
 
 
@@ -336,12 +352,6 @@ public class AnimationHelper implements OnChildAttachedListener {
         makeViewsInvisible();
 
         animateInitiallyVisibleViews();
-    }
-
-    private void log(String msg) {
-
-        Log.d("Lustig", msg);
-
     }
 
     public void makeViewsInvisible() {

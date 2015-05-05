@@ -78,7 +78,7 @@ public class NumberedAdapter extends RecyclerView.Adapter<NumberedAdapter.TextVi
     @Override
     public void onBindViewHolder(final TextViewHolder holder, final int position) {
 
-        Log.d("Lustig", "onBindViewHolder: " + position);
+//        Log.d("Lustig", "onBindViewHolder: " + position);
 
         /* If mNumColumns has been set, the code will skip this block */
         if (mNumColumns == -1) {

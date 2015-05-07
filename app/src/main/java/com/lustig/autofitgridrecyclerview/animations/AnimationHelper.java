@@ -63,7 +63,7 @@ public class AnimationHelper implements OnChildAttachedListener {
      **************************************************************************
      **************************************************************************/
 
-    public static final boolean DEBUG = false;
+    public static final boolean DEBUG = true;
 
     /**
      * This is the time that it takes one cell to complete an animation.
@@ -179,30 +179,30 @@ public class AnimationHelper implements OnChildAttachedListener {
 
                         Log.d("Lustig", "Number of Rows: " + mNumInitiallyVisibleRows);
 
-                        Log.d("Lustig", "Number of Children: " + mNumChildren);
+//                        Log.d("Lustig", "Number of Children: " + mNumChildren);
                         Log.d("Lustig", "Children attached: " + mNumChildrenAttached);
 
-                        Log.d("Lustig", "Last visible row (0 offset): " + (mNumInitiallyVisibleRows - 1));
+//                        Log.d("Lustig", "Last visible row (0 offset): " + (mNumInitiallyVisibleRows - 1));
 
-                        mCurrentRowNumber = mNumInitiallyVisibleRows;
-
-                        Log.d("Lustig", "First row to make a determination: " + mCurrentRowNumber);
+//                        mCurrentRowNumber = mNumInitiallyVisibleRows;
+//
+//                        Log.d("Lustig", "First row to make a determination: " + mCurrentRowNumber);
 
                         Log.d("Lustig", "Number of Items: " + mTotalItems);
 
                         Log.d("Lustig", "Total rows: " + mNumRows);
 
-                        mInitialAnimationTimeIntervals = mNumColumns + mNumInitiallyVisibleRows - 2;
+//                        mInitialAnimationTimeIntervals = mNumColumns + mNumInitiallyVisibleRows - 2;
                         mTotalAnimationTimeIntervals = mNumColumns + mNumRows - 2;
 
-                        Log.d("Lustig", "Animation rows: " + mNumInitiallyVisibleRows);
+//                        Log.d("Lustig", "Animation rows: " + mNumInitiallyVisibleRows);
 
                         Log.d("Lustig", "Animation columns: " + mNumColumns);
 
-                        Log.d("Lustig", "Initial animation time intervals: " + mInitialAnimationTimeIntervals);
+//                        Log.d("Lustig", "Initial animation time intervals: " + mInitialAnimationTimeIntervals);
                         Log.d("Lustig", "Complete animation time intervals: " + mTotalAnimationTimeIntervals);
 
-                        animateInitiallyVisibleViews();
+                        animateViews();
                     }
                 });
 
@@ -236,24 +236,7 @@ public class AnimationHelper implements OnChildAttachedListener {
     }
 
 
-    private void animateInitiallyVisibleViews() {
-
-        /**
-         * This first for loop gets all current children that can be animated
-         *
-         * ToDo refactor this code to add children in onChildAttached
-         */
-        for (int row = 0; row < mNumInitiallyVisibleRows; ++row) {
-
-            for (int column = 0; column < mNumColumns; ++column) {
-
-//                Log.d("Lusti", "(row, column): (" + row + ", " + column + ")");
-
-                int viewNumber = (row * (mNumColumns) + column);
-
-                mViewsToAnimate[row][column] = mRecyclerView.getChildAt(viewNumber);
-            }
-        }
+    private void animateViews() {
 
         /**
          * This for loop adds each view to a queue to animate.
@@ -277,33 +260,36 @@ public class AnimationHelper implements OnChildAttachedListener {
                      * If the row is visible in the initial viewing of the screen, go ahead and
                      * animate it.
                      */
-                    if (row < mNumInitiallyVisibleRows) {
-
-                        Log.d("Animation", "T = " + T + ":\t(" + row + ", " + column + ")");
-
-                        final View v = mViewsToAnimate[row][column];
-                        final Handler handler = new Handler();
-
-                        handler.postDelayed(
-                                new Runnable() {
-
-                                    @Override
-                                    public void run() {
-
-                                        animateSingleView(v);
-
-                                    }
-
-                                }, mDeltaT * T);
-
-                    /*
-                     * If the row is between the below bounds, we need to use a TimerTask
-                     * to determine what to do with them.
-                     *
-                     * - - -Or I guess I should use a handler in exactly the same way I do above,
-                     * just to call different logic.
-                     */
-                    } else if (mNumInitiallyVisibleRows <= row && row < mNumRows) {
+                    if (
+//                            row < mNumInitiallyVisibleRows) {
+//
+//                        Log.d("Animation", "T = " + T + ":\t(" + row + ", " + column + ")");
+//
+//                        final View v = mViewsToAnimate[row][column];
+//                        final Handler handler = new Handler();
+//
+//                        handler.postDelayed(
+//                                new Runnable() {
+//
+//                                    @Override
+//                                    public void run() {
+//
+//                                        animateSingleView(v);
+//
+//                                    }
+//
+//                                }, mDeltaT * T);
+//
+//                    /*
+//                     * If the row is between the below bounds, we need to use a TimerTask
+//                     * to determine what to do with them.
+//                     *
+//                     * - - -Or I guess I should use a handler in exactly the same way I do above,
+//                     * just to call different logic.
+//                     */
+//                    } else if (mNumInitiallyVisibleRows <= row &&
+                        row < mNumRows) { // this is super messy code, but I linked this completion of the if statement from above down here
+                                            // in an attempt to remove the in between code
 
                         Log.d("Complete Animation", "T = " + T + ":\t(" + row + ", " + column + ")");
 
@@ -319,8 +305,6 @@ public class AnimationHelper implements OnChildAttachedListener {
 
                                     @Override
                                     public void run() {
-
-//                                        Log.d("Lusti", "(" + handlerRow + ", " + handlerColumn + ") should animate now at time " + handlerTime);
 
                                         final View v = mPendingViews[handlerRow][handlerColumn];
 
@@ -439,10 +423,12 @@ public class AnimationHelper implements OnChildAttachedListener {
 
         makeViewsInvisible();
 
-        animateInitiallyVisibleViews();
+        animateViews();
     }
 
     public void makeViewsInvisible() {
+
+        // ToDo add mViewHasAnimated and mPendingViews resets here
 
         /* Disappear all images */
         for (int i = 0; i < mNumChildren; i++) {

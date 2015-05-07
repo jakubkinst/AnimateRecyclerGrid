@@ -2,7 +2,6 @@ package com.lustig.autofitgridrecyclerview.adapters;
 
 import android.support.v7.widget.CardView;
 import android.support.v7.widget.RecyclerView;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -57,14 +56,14 @@ public class NumberedAdapter extends RecyclerView.Adapter<NumberedAdapter.TextVi
 
             textView = (TextView) itemView.findViewById(R.id.text);
 
-            cardView.setOnClickListener(
-                    new View.OnClickListener() {
-                        @Override
-                        public void onClick(View v) {
-
-                            mHelper.onClickOfCard();
-                        }
-                    });
+//            cardView.setOnClickListener(
+//                    new View.OnClickListener() {
+//                        @Override
+//                        public void onClick(View v) {
+//
+//                            mHelper.onClickOfCard();
+//                        }
+//                    });
         }
     }
 
@@ -83,11 +82,11 @@ public class NumberedAdapter extends RecyclerView.Adapter<NumberedAdapter.TextVi
         /* If mNumColumns has been set, the code will skip this block */
         if (mNumColumns == -1) {
 
-            Log.d("Lustig", "setting adapter numColumns");
+//            Log.d("Lustig", "setting adapter numColumns");
 
             mNumColumns = mRecyclerView.getNumColumns();
 
-            Log.d("Lustig", "mNumColumns now = " + mNumColumns);
+//            Log.d("Lustig", "mNumColumns now = " + mNumColumns);
         }
 
         final String label = labels.get(position);

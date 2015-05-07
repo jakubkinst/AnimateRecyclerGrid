@@ -21,7 +21,7 @@ public class MainActivity extends Activity {
         mRecyclerView = (AutoFitRecyclerView) findViewById(R.id.recycler_view);
         mRecyclerView.setHasFixedSize(true);
 
-        mRecyclerView.setAdapter(new NumberedAdapter(100));
+        mRecyclerView.setAdapter(new NumberedAdapter(20));
     }
 
     @Override
